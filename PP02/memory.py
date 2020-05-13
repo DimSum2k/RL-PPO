@@ -13,7 +13,7 @@ class Memory:
         del self.rewards[:]
         del self.dones[:]
         del self.values[:]
-        self.observations[:]
+        del self.observations[:]
         
     def __len__(self):
         assert len(self.actions)==len(self.logprobs)==len(self.rewards)==len(self.dones)==len(self.values)

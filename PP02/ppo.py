@@ -17,7 +17,6 @@ class PPO(object):
         self.device = device
         self.epochs = config["epochs"]
         
-        self.discrete_action_bool = isinstance(env.action_space, Discrete) 
         self.gamma = config['gamma'] 
         self.lambd = config['lambda'] 
         self.c1 = config['c1'] 
@@ -27,18 +26,14 @@ class PPO(object):
         self.batch_size = config['batch_size']
         self.epochs = config['epochs']
 
-        if self.discrete_action_bool == False :
-            print("Low : ",env.action_space.low)
-            print("High : ",env.action_space.high)
-        
         np.random.seed(config['seed'])
         torch.manual_seed(config['seed'])
         env.seed(config['seed'])
         
         # actor critic  (get a second network ? )
         self.actorcritic = ActorCritic(env.observation_space.shape[0], 
-                          config['critic']['hidden'],
-                          config['actor']['hidden'], 
+                          config['actor']['hidden'],
+                          config['critic']['hidden'], 
                           env.action_space.n).to(self.device)
     
         self.optimizer = optim.Adam(self.actorcritic.parameters(), lr=config['actor']['lr'])
@@ -88,8 +83,11 @@ class PPO(object):
             returns.insert(0,gae + memory.values[i])
             advantages.insert(0,gae)
             next_value = memory.values[i]
+
+        returns = torch.FloatTensor(returns).to(self.device)
+        advantages = returns - torch.FloatTensor(memory.values).to(self.device)
             
-        return torch.FloatTensor(returns).to(self.device), torch.FloatTensor(advantages).to(self.device)
+        return returns, advantages 
     
     
     def optimize_model(self, memory, returns, advantages):
@@ -145,10 +143,7 @@ class PPO(object):
         done = False
         with torch.no_grad():
             while not done:
-                action = self.actorcritic.select_action(observation, store=False)
-                
-                if self.discrete_action_bool : 
-                    action = int(action)  
+                action = int(self.actorcritic.select_action(observation, store=False))
 
                 observation, reward, done, info = env_test.step(action)
                 observation = torch.from_numpy(observation).float().to(self.device)

@@ -48,8 +48,7 @@ class ActorCritic(nn.Module):
                 )
 
     def forward(self, x):
-        #out = F.relu(self.fc1(x.float()))
-        pass
+        raise NotImplementedError
 
     def select_action(self, x, memory=None,store=True):
         action_probs = self.action_layer(x)
@@ -61,7 +60,7 @@ class ActorCritic(nn.Module):
             memory.actions.append(action) 
             memory.logprobs.append(dist.log_prob(action))
     
-        return action
+        return action.item()
 
     
     def predict(self, x):
