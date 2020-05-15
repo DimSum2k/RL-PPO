@@ -1,53 +1,63 @@
-
 import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np 
+import os
 
-### Note : functions defined in https://sites.google.com/view/rlensae2020/hands-on?authuser=0
+def plot_result(*df,config,save,var=["Episode","Reward"]):
+    plt.figure(figsize=(8,4))
+    for r in df :
+        loss_name = r['loss_name'].unique()[0]
+        sns.lineplot(x=var[0], y=var[1],  ci='sd', data=r, color=config["color"][loss_name],label=loss_name)
 
-def moving_average(values, window):
-    cumsum = np.cumsum(np.insert(values, 0, 0))
-    return (cumsum[window:] - cumsum[:-window]) / float(window)
+    plt.savefig(os.path.join(save,"images","rewards.png")) 
 
-def plot_steps_per_episode(number_steps_per_episode, smoothing=8):
-    f1 = plt.figure(1, figsize=(12, 7))
-    plt.title(" Title : Agent's number of actions per episode")
-    plt.xlabel("Episodes")
-    plt.ylabel("Number of actions")
-    plt.plot(number_steps_per_episode, label='raw plot')
-    plt.plot(moving_average(number_steps_per_episode, smoothing),
-             label='moving average')
-    plt.legend()
-    f1.show()
-    
-def plot_average_reward(average_reward_per_episode, smoothing=10):
-    f2 = plt.figure(2, figsize=(12, 7))
-    plt.title(" Title : Agent's average reward per episode")
-    plt.xlabel("Episodes")
-    plt.ylabel("Average reward")
-    plt.plot(average_reward_per_episode, label='raw plot')
-    plt.plot(moving_average(average_reward_per_episode, smoothing),
-             label='moving average')
-    plt.legend()
-    f2.show()
+def plot_sumup(rewards_list,config,save, loss_list=None):
+    plot_result(*rewards_list,config=config,save=save)
 
-def plot_total_reward(total_reward_per_episode, smoothing=10):
-    f3 = plt.figure(3, figsize=(12, 7))
-    plt.title(" Title : Agent's total reward per episode")
-    plt.xlabel("Episodes")
-    plt.ylabel("Total reward")
-    plt.plot(total_reward_per_episode, label='raw plot')
-    plt.plot(moving_average(total_reward_per_episode, smoothing),
-             label='moving average')
-    plt.legend()
-    f3.show()
-    
-def plot_episode_duration(episodes_durations, smoothing=10):
-    f4 = plt.figure(4, figsize=(12, 7))
-    plt.title(" Title : Duration of each episode")
-    plt.xlabel("Episodes")
-    plt.ylabel("Duration")
-    plt.plot(episodes_durations, label='raw plot')
-    plt.plot(moving_average(episodes_durations, 10), label='moving average')
-    plt.legend()
-    f4.show()
-    
-    
+    if loss_list is not None:
+        plot_result(*loss_list,config=config,var=["Update","entropy"])
+        plot_result(*loss_list,config=config,var=["Update","dry_loss"])
+
+def plot_sensitivity(*df,config,label_list,var=["Episode","Reward"]):
+    plt.figure(figsize=(8,4))
+    for i in range(len(label_list)):
+        r=df[i]
+        col = list(sns.color_palette("Set1")+sns.color_palette("Set3"))[i]
+        sns.lineplot(x=var[0], y=var[1],  ci='sd', data=r, 
+                     color=col,label=label_list[i])
+
+
+
+def create_folders(env_name):
+
+    path = "./experiences"
+    name = env_name + "_" + str(np.random.randint(0,1e8))
+
+    try:
+        os.mkdir(os.path.join(path,name))
+        os.mkdir(os.path.join(path,name,"images"))
+        os.mkdir(os.path.join(path,name,"weights"))
+        os.mkdir(os.path.join(path,name,"logs"))
+    except OSError:
+        print ("Creation of the directory %s failed" % path)
+    else:
+        print ("Successfully created the directory %s " % path)
+
+    return os.path.join(path,name)
+
+
+
+welcome =  """
+   \\ \\      / /__| | _ _  _ _ __   _
+    \\ \\ /\\ / / _ \\ |/ _/ _ \\| ' ` _ \\ / _ \\
+     \\ V  V /  _/ | (_| () | | | | | |  __/
+      \\_/\\_/ \\___|_|\\___\\___/|_| |_| |_|\\___|
+    \n
+    ________________________________________________
+    < Welcome ! Let's do Reinforcement Learning ! >
+    --------------------------------------------------
+    \\   ^__^
+     \\  (oo)\\_______
+      //(__)\\       )\\/\\
+             ||----w |
+             ||     ||"""
