@@ -7,6 +7,7 @@ old
 .idea
 
 .ipynb_checkpoints
+__pycache__
 
 *.pyc
 *.so
@@ -21,7 +22,7 @@ old
 
 *.jpg
 *.jpeg
-*.png
+#*.png
 *.ppm
 *.tif
 *.tiff
@@ -29,13 +30,13 @@ old
 *.ini
 
 
-*.pkl
+#*.pkl
 *.pickle
 
 *.RDS
 *.Rhistory
 
 # saved models
-*.pth
+#*.pth
 # logs
 runs/
