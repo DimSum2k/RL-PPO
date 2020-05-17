@@ -70,7 +70,7 @@ for loss in ["clipped_loss_actor",
 if args.get_gif:
     print()
     print("Saving GIF for PPO clipped loss ...")
-    get_gif(path_instance, name_env, "A2C_loss_actor")
+    get_gif(path_instance, name_env)
 print()
 print("Results: \n")
 df = pd.DataFrame(np.array(final_res).T)
