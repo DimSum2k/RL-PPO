@@ -1,19 +1,17 @@
-import pandas as pd
 import itertools
 import numpy as np
+import pandas as pd
 import datetime
+from tqdm import tqdm
 import gym
-# from gym.wrappers import Monitor
 from gym.spaces import Discrete
-
 import torch
-# import torch.nn as nn
 from torch import optim
 import torch.nn.functional as F
-# from torch.distributions import normal
-
+from torch.distributions import Normal
 from memory import Memory
 from networks import CustomValueNetwork, CustomDiscreteActorNetwork
+from networks import ContinuousActorNetwork
 
 
 class PPOAgent:
@@ -46,18 +44,31 @@ class PPOAgent:
         self.env.seed(config['seed'])
 
         # Critic
-        self.value_network = CustomValueNetwork(self.env.observation_space.shape[0], 64, 1).to(self.device)
+        self.value_network = CustomValueNetwork(
+                            self.env.observation_space.shape[0],
+                            64,
+                            1).to(self.device)
         self.value_network_optimizer: optim.Optimizer = optim.Adam(
-            self.value_network.parameters(), lr=config['lr'])
-
+                                            self.value_network.parameters(),
+                                            lr=config['lr'])
         # Actor
         if self.discrete_action_bool:
-            self.actor_network = CustomDiscreteActorNetwork(self.env.observation_space.shape[0], 64, self.env.action_space.n).to(self.device)
+            self.actor_network = CustomDiscreteActorNetwork(
+                                        self.env.observation_space.shape[0],
+                                        64,
+                                        self.env.action_space.n
+                                                            ).to(self.device)
         else:
-            self.actor_network = ContinuousActorNetwork(self.env.observation_space.shape[0], 64, self.env.action_space.shape[0], self.config["std"], self.env).to(self.device)
+            self.actor_network = ContinuousActorNetwork(
+                            self.env.observation_space.shape[0],
+                            64,
+                            self.env.action_space.shape[0],
+                            self.config["std"], self.env
+                                                        ).to(self.device)
 
         self.actor_network_optimizer: optim.Optimizer = optim.Adam(
-            self.actor_network.parameters(), lr=config['lr'])
+                                            self.actor_network.parameters(),
+                                            lr=config['lr'])
 
         # save in memory policy estimates
         self.probs_list = []    # probability of actions taken
@@ -129,33 +140,31 @@ class PPOAgent:
         else:
             print('Loss : ', self.loss_name)
 
-        for ep in range(max_episodes):
+        for ep in tqdm(range(max_episodes)):
             if not solved:
                 episode_count += 1
                 obs = self.env.reset()
 
                 for i in range(max_steps):
                     timestep_count += 1
-                    # just observed s_t
                     self.memory.observations.append(obs)
-                    # tensor
                     obs_t = torch.from_numpy(obs).float().to(self.device)
-                    # act on just observed, action a_t
-                    action = self.actor_network.select_action(obs_t)
+                    action = self.actor_network.select_action(obs_t.view(1, -1))
 
                     if self.discrete_action_bool:
                         action = int(action)
-                    self.memory.actions.append(action)
+                        self.memory.actions.append(action)
+                        obs, reward, done, _ = self.env.step(action)
 
-                    # Run a step : get new state s_{t+1} and rewards r_t
-                    obs, reward, done, _ = self.env.step(action)
+                    else:
+                        self.memory.actions.append(action)
+                        obs, reward, done, _ = self.env.step(action.view(-1))
 
                     # Store termination status reward
                     self.memory.dones.append(done)
                     self.memory.rewards.append(reward)
 
                     if (timestep_count % optimize_every) == 0:
-
                         for epoch in range(epochs):
                             loss_val, dry_loss_val, entrop_val = self.optimize_model(obs)
                             if epoch == epochs-1:
@@ -171,7 +180,6 @@ class PPOAgent:
             # Test every 25 episodes
             if ep == 1 or (ep > 0 and ep % 25 == 0) or (ep == max_episodes - 1):
                 rewards_test.append(np.array([self.evaluate() for _ in range(50)]))
-                print(f'Episode {ep}/{max_episodes}: Mean rewards: {round(rewards_test[-1].mean(), 2)}, Std: {round(rewards_test[-1].std(), 2)}')
                 if round(rewards_test[-1].mean(), 2) == 500.:
                     solved = True
 
@@ -194,30 +202,26 @@ class PPOAgent:
 
         return r, loss_evol
 
-    def A2C_loss(self, prob, actions, advantages):
-        loss = 0.
-        if self.discrete_action_bool:
-            for i in range(len(actions)):
-                loss -= torch.log(prob[i, int(actions[i])]+1e-6)*advantages[i]
-        else:
-            loss = torch.dot(torch.log(prob.view(-1)+1e-6), advantages)
-        return loss
-
     def compute_proba_ratio(self, prob, actions):
         if self.discrete_action_bool:
-            # 1st iteration : initialize old policy to the current one to avoid clipping
             if len(self.probs_list) == 1:
                 old_prob = self.probs_list[0]
             else:
                 old_prob = self.probs_list[len(self.probs_list)-2]
+
         else:
             if len(self.mean_list) == 1:
                 old_prob_mean = self.mean_list[0]
             else:
                 old_prob_mean = self.mean_list[len(self.mean_list)-2]
 
-            m = normal.Normal(loc=old_prob_mean.float(), scale=torch.tensor(config["std"]*np.ones(actions.size())).float())
-            old_prob = m.log_prob(actions.float()).reshape(actions.size()).detach()
+            diag = torch.tensor(self.config['std']*np.ones(old_prob_mean.size()[1])).float()
+            dist = Normal(old_prob_mean, scale=diag)
+            old_prob = dist.log_prob(actions).detach()
+
+            # build new ones
+            dist = Normal(prob, scale=diag)
+            prob = dist.log_prob(actions)
 
         if self.discrete_action_bool:
             # compute the ratio directly using gather function
@@ -226,6 +230,11 @@ class PPOAgent:
             ratio_vect = num.view(-1)/denom.view(-1)
 
         else:
+            if np.isnan(prob.cpu().detach().numpy()).any():
+                print("NaN encountered in num ratio")
+
+            if np.isnan(old_prob.cpu().detach().numpy()).any():
+                print("NaN encountered in denom ratio")
             ratio_vect = prob/(old_prob+1e-6)
 
         if np.isnan(ratio_vect.cpu().detach().numpy()).any():
@@ -233,20 +242,18 @@ class PPOAgent:
 
         return ratio_vect, old_prob
 
+
     def clipped_loss(self, prob, actions, advantages):
 
         ratio_vect = self.compute_proba_ratio(prob, actions)[0]
-        if len(actions.size()) > 1:
+        if len(actions.size()) > 1 and not(self.discrete_action_bool):
             ratio_vect = torch.prod(ratio_vect, dim=1)
-
-        # Compute the loss
         loss1 = ratio_vect * advantages
         loss2 = torch.clamp(ratio_vect, 1-self.config['eps_clipping'], 1+self.config['eps_clipping']) * advantages
         loss = - torch.sum(torch.min(loss1, loss2))
         return loss
 
     def adaptative_KL_loss(self, prob, actions, advantages, observations):
-
         if self.discrete_action_bool:
             ratio_vect, old_prob = self.compute_proba_ratio(prob, actions)
             kl = torch.zeros(1)
@@ -255,16 +262,21 @@ class PPOAgent:
 
         else:
             ratio_vect = self.compute_proba_ratio(prob, actions)[0]
+            if len(actions.size()) > 1 and not(self.discrete_action_bool):
+                ratio_vect = torch.prod(ratio_vect, dim=1)
             if len(self.mean_list) == 1:
                 kl = torch.tensor(0.)
             else:
-                mu = prob.view(-1)
-                mu_old = self.mean_list[len(self.mean_list)-2].view(-1).detach()
-                kl = torch.dot((mu-mu_old)/torch.tensor(config["std"]*np.ones(len(actions))).float(), mu-mu_old)/2
+                mu = prob
+                mu_old = self.mean_list[len(self.mean_list)-2].detach()
+                a = (mu-mu_old)/torch.tensor(config["std"]*np.ones(actions.size())).float()
+                b = (mu-mu_old)
+                if len(actions.size()) > 1:
+                    a = torch.prod(a, axis=1)
+                    b = torch.prod(b, axis=1)
+                kl = torch.dot(a, b)/2
 
         loss = - torch.sum((ratio_vect*advantages)) + self.beta_kl*kl
-
-        # Update beta values
         if np.isnan(torch.mean(kl).cpu().detach().numpy()):
             print("Nan encountered in average KL divergence")
         if kl < self.config["d_targ"]/1.5:
@@ -273,13 +285,34 @@ class PPOAgent:
             self.beta_kl = self.beta_kl * 2
         return loss
 
+    def A2C_loss(self, prob, actions, advantages):
+        loss = 0.
+        if self.discrete_action_bool:
+            for i in range(len(actions)):
+                loss -= torch.log(prob[i, int(actions[i])]+1e-6)*advantages[i]
+        else:
+            diag = torch.tensor(self.config["std"]*np.ones(prob.size()[1])).float()
+            dist = Normal(prob, scale=diag)
+            prob = dist.log_prob(actions)
+            if actions.size()[1] > 1:
+                prob = torch.prod(prob, dim=1)
+            loss = torch.dot(torch.log(prob.view(-1)+1e-6), advantages)
+
+        return loss
+
     def optimize_model(self, next_obs):
 
         losses = {"loss": [], "dry_loss": [], "entropy": []}
         idx = torch.arange(len(self.memory))
 
         observations = torch.tensor(self.memory.observations).float().to(self.device)
-        actions = torch.tensor(self.memory.actions).float().to(self.device)
+        if np.isnan(observations.cpu().detach().numpy()).any():
+            print("nan in observations")
+
+        if self.discrete_action_bool:
+            actions = torch.tensor(self.memory.actions).float().to(self.device)
+        else:
+            actions = torch.squeeze(torch.stack(self.memory.actions),1).float().to(self.device)
 
         next_obs = torch.from_numpy(next_obs).float().to(self.device)
         next_value = self.value_network.predict(next_obs)
@@ -289,10 +322,6 @@ class PPOAgent:
         advantages = advantages.float().to(self.device)
 
         for i in range(0, returns.size()[0], self.batch_size):
-            # if i==0: epoch=0
-            # else: epoch=1
-
-            indices = idx[i:i+self.batch_size]
             batch_observations = observations[i:i+self.batch_size]
             batch_actions = actions[i:i+self.batch_size]
             batch_returns = returns[i:i+self.batch_size]
@@ -305,23 +334,21 @@ class PPOAgent:
             self.value_network_optimizer.step()
 
             # Actor & Entropy loss
-            # /!\ doesn't have the same meaning in the discrete and continuous case
-            prob: torch.Tensor = self.actor_network(batch_observations) # shape (batch_size,action_space)
+            if np.isnan(batch_observations.cpu().detach().numpy()).any():
+                print("nan in batch observations")
+
+            prob: torch.Tensor = self.actor_network.forward(batch_observations)
+            if np.isnan(prob.cpu().detach().numpy()).any():
+                print("NAN HERE")
 
             if self.discrete_action_bool:
                 self.probs_list.append(prob.detach())
-                # self.memory.probs.append(prob.detach())
-            # /!\ continuous actions may have several dimensions
+
             else:
-                m = normal.Normal(loc=prob.float(), scale=torch.tensor(config["std"]*np.ones(actions.size())).float())
-                logprob = m.log_prob(actions.float()).reshape(actions.size())
-                self.probs_list.append(torch.exp(logprob).detach()) # not very useful
-                # append the gaussian mean (used to estimate old proability)
-                self.mean_list.append(prob)
+                self.mean_list.append(prob.detach())
 
             if self.loss_name == "clipped_loss":
                 loss = self.clipped_loss(prob, batch_actions, batch_advantages)
-                # loss = self.clipped_loss(batch_actions, batch_advantages, epoch)
 
             elif self.loss_name == "adaptative_KL_loss":
                 loss = self.adaptative_KL_loss(prob, batch_actions, batch_advantages, batch_observations)
@@ -329,19 +356,13 @@ class PPOAgent:
             elif self.loss_name == "A2C_loss":
                 loss = self.A2C_loss(prob, batch_actions, batch_advantages)
 
-            else:  # use clipped loss as default
+            else:
                 loss = self.clipped_loss(prob, batch_actions, batch_advantages)
 
             dry_loss = loss
             entropy_term = -torch.sum(prob * torch.log(prob+1e-6))
-            # entropy_term = -torch.sum(prob * torch.log(prob+1e-6), dim=1)
             loss -= (self.c2 * entropy_term)
-            # loss = loss.sum() - (self.c2 * entropy_term)
-            # loss = loss / n_trajs
-
             loss.backward()
-            # loss.sum().backward()
-            # loss.mean().backward()
             self.actor_network_optimizer.step()
             self.value_network_optimizer.zero_grad()
             self.actor_network_optimizer.zero_grad()
@@ -365,9 +386,10 @@ class PPOAgent:
 
                 if self.discrete_action_bool:
                     action = int(torch.multinomial(policy, 1))
+                    observation, reward, done, info = env.step(action)
                 else:
                     action = self.actor_network.select_action(observation)
-                observation, reward, done, info = env.step(action)
+                    observation, reward, done, info = env.step(action.view(-1))
                 observation = torch.from_numpy(observation).float().to(self.device)
                 reward_episode += reward
 
