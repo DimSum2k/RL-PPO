@@ -18,7 +18,7 @@ __pycache__
 *.html
 *.csv
 *.csv#
-*.pdf
+#*.pdf
 
 *.jpg
 *.jpeg
