@@ -19,7 +19,7 @@ You can now benchmark and evaluate the different losses with _main_test.py_. If 
 
 If you want to evaluate you own results use your simulation instance (ex: experiences\CartPole-v1_2199621).
 
-``` python main_test.py --path_to_instance "experiences\CartPole-v1_2199621" ```
+``` python main_test.py --instance "CartPole-v1_2199621" ```
 
 You can also capture a gif of a game by adding _--get_gif_: 
 
