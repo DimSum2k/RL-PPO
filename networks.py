@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
+from torch.distributions import Normal
+
+import sys
 
 
 import numpy as np 
@@ -76,6 +79,10 @@ class ContinuousActorNetwork(nn.Module):
 		self.env = env
 
 	def forward(self, x):
+		raise NotImplementedError
+
+	def evaluate(self,x):
+
 		out = torch.tanh(self.fc1(x.float()))
 		out = torch.tanh(self.fc2(out))
 		out = torch.tanh(self.fc2(out))
@@ -84,17 +91,22 @@ class ContinuousActorNetwork(nn.Module):
 		if np.isnan(out.cpu().detach().numpy()).any():
 			#print(batch_observations)
 			print("Nan")
+			sys.exit(0)
 		return out
 
 	def select_action(self, x):
-		action_mean = self(x)
+		action_mean = self.evaluate(x)
+
 		if np.isnan(action_mean.cpu().detach().numpy()).any():
 			#print(batch_observations)
 			print("Naaaaaaaaan")
-		cov_mat = torch.eye(action_mean.size()[0])*self.std
-		#cov_mat = torch.diag(self.action_var).to(device)
-		dist = MultivariateNormal(action_mean, cov_mat)
+
+		#cov_mat = torch.eye(action_mean.size()[1])*self.std
+		#dist = MultivariateNormal(action_mean, cov_mat)
+
+		dist = Normal(action_mean, scale = torch.tensor(self.std*np.ones(action_mean.size()[1])).float())
 		action = dist.sample()
+
 		if np.isnan(action.cpu().detach().numpy()).any():
 			print("NAAAAAAAAAAAAAN")
 		#action_logprob = dist.log_prob(action)
@@ -102,3 +114,4 @@ class ContinuousActorNetwork(nn.Module):
 		#sampled_a = min(self.env.action_space.high, sampled_a)
 	 
 		return action.detach()
+

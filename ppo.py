@@ -9,6 +9,7 @@ import torch
 from torch import optim
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
+from torch.distributions import Normal
 
 from memory import Memory
 from networks import CustomValueNetwork, CustomDiscreteActorNetwork, ContinuousActorNetwork
@@ -140,7 +141,9 @@ class PPOAgent:
 					# tensor
 					obs_t = torch.from_numpy(obs).float().to(self.device)
 					# act on just observed, action a_t
-					action = self.actor_network.select_action(obs_t)
+					action = self.actor_network.select_action(obs_t.view(1,-1))
+					print(obs_t.view(1,-1).size())
+					print(action)
 
 					if self.discrete_action_bool:
 						action = int(action)
@@ -148,7 +151,7 @@ class PPOAgent:
 
 					# Run a step : get new state s_{t+1} and rewards r_t
 					#print(action)
-					obs, reward, done, _ = self.env.step(action)
+					obs, reward, done, _ = self.env.step(action.view(-1))
 
 					# Store termination status reward
 					self.memory.dones.append(done)
@@ -218,8 +221,11 @@ class PPOAgent:
 			#print(old_prob_mean.size())
 
 			# build old probabilities 
-			cov_mat = torch.eye(old_prob_mean.size()[1])*self.config["std"]
-			dist = MultivariateNormal(old_prob_mean, cov_mat)
+			#cov_mat = torch.eye(old_prob_mean.size()[1])*self.config["std"]
+			#dist = MultivariateNormal(old_prob_mean, cov_mat)
+
+			diag = torch.tensor(self.std*np.ones(old_prob_mean.size()[1])).float()
+			dist = Normal(old_prob_mean, scale = diag)
 			#print("hey")
 			#print(old_prob_mean.size())
 			#print(cov_mat.size())
@@ -228,7 +234,8 @@ class PPOAgent:
 
 			# build new ones
 			#print(prob)
-			dist = MultivariateNormal(prob, cov_mat)
+			#dist = MultivariateNormal(prob, cov_mat)
+			dist = Normal(prob, scale = diag)
 			prob = dist.log_prob(actions)
 
 		if self.discrete_action_bool:
@@ -302,9 +309,21 @@ class PPOAgent:
 			for i in range(len(actions)):
 				loss -= torch.log(prob[i, int(actions[i])]+1e-6)*advantages[i]
 		else:
-			cov_mat = torch.eye(prob.size()[1])*self.config["std"]
-			dist = MultivariateNormal(prob, cov_mat)
+			print(prob.size(),"1")
+			#cov_mat = torch.eye(prob.size()[1])*self.config["std"]
+			#print(cov_mat.size())
+			#dist = MultivariateNormal(prob, cov_mat)
+			diag = torch.tensor(self.config["std"]*np.ones(prob.size()[1])).float()
+			print(diag.size())
+			dist = Normal(prob, scale = diag)
 			prob = dist.log_prob(actions)
+			print(actions.size())
+			print(prob.size(),"2")
+			if actions.size()[1]>1:
+				prob = torch.prod(prob, dim=1)
+				print(prob.size())
+
+
 			loss = torch.dot(torch.log(prob.view(-1)+1e-6), advantages)
 
 		return loss
@@ -317,12 +336,15 @@ class PPOAgent:
 		idx = torch.arange(len(self.memory))
 
 		observations = torch.tensor(self.memory.observations).float().to(self.device)
-		#print(observations.size())
+		print(observations.size())
+		if np.isnan(observations.cpu().detach().numpy()).any():
+			print("nan in observations")
 
 		if self.discrete_action_bool:		
 			actions = torch.tensor(self.memory.actions).float().to(self.device)
 		else:
-			actions = torch.stack(self.memory.actions).float().to(self.device)
+			actions = torch.squeeze(torch.stack(self.memory.actions),1).float().to(self.device)
+			print(actions.size(), "bouya")
 
 
 		next_obs = torch.from_numpy(next_obs).float().to(self.device)
@@ -347,10 +369,15 @@ class PPOAgent:
 			self.value_network_optimizer.step()
 
 			# Actor & Entropy loss
-			prob: torch.Tensor = self.actor_network(batch_observations)
-			#if np.isnan(prob.cpu().detach().numpy()).any():
-			#	print(batch_observations)
-			#	print("Naaaaaaaaan")
+			print(batch_observations.size())
+			if np.isnan(batch_observations.cpu().detach().numpy()).any():
+				print("nan in batch observations")
+
+
+			prob: torch.Tensor = self.actor_network.evaluate(batch_observations)
+			if np.isnan(prob.cpu().detach().numpy()).any():
+				print(batch_observations.size(),"d")
+				print("NAN HERE")
 
 
 			if self.discrete_action_bool:
