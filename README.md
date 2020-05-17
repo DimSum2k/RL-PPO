@@ -10,7 +10,7 @@ This project was the final evaluation of the course of Reinforcement Learning ta
 
 After having clone this repository, if you want to replicate the traning, you need to run the _main_train.py_ code:
 
-``` python main.py ```
+``` python main_train.py ```
 
 The path to your simulation instance will be printed at the end (ex: experiences\CartPole-v1_2199621). 
 You can now benchmark and evaluate the different losses with _main_test.py_. If you want to evaluate the pretrained network run:
@@ -30,6 +30,7 @@ If you want to display the games you evaluate on use (add _--episode_ to reduce 
 ``` python main_test.py --render --episodes 5```
 
 ***Advantage Actor-Critic on CartPole v1***: 
+Display of an Advantage Actor Critic policy trained for Cartpole
 
 <img width="500px" src="gif/CartPole_A2C.gif">
 
