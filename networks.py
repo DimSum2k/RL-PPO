@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions import Normal
+
+
+import numpy as np
 
 
 class CustomValueNetwork(nn.Module):
@@ -70,16 +74,21 @@ class ContinuousActorNetwork(nn.Module):
         self.fc3 = nn.Linear(hidden_size, action_size)
         self.std = std
         self.env = env
+        self.activ = nn.ReLU()
 
     def forward(self, x):
-        out = torch.tanh(self.fc1(x.float()))
-        out = torch.tanh(self.fc2(out))
-        out = torch.tanh(self.fc2(out))
-        out = torch.tanh(self.fc3(out))
+        out = self.activ(self.fc1(x.float()))
+        out = self.activ(self.fc2(out))
+        out = self.activ(self.fc2(out))
+        out = self.activ(self.fc3(out))
         return out
 
     def select_action(self, x):
-        sampled_a = torch.normal(self(x), self.std).detach().numpy()
-        sampled_a = max(self.env.action_space.low, sampled_a)
-        sampled_a = min(self.env.action_space.high, sampled_a)
-        return sampled_a
+        action_mean = self.forward(x)
+
+        if len(action_mean.size()) == 1:
+            action_mean = action_mean.unsqueeze(0)
+        scale_c = torch.tensor(self.std*np.ones(action_mean.size()[1])).float()
+        dist = Normal(action_mean, scale=scale_c)
+        action = dist.sample()
+        return action.detach()

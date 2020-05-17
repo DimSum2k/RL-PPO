@@ -13,11 +13,12 @@ import pickle
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--path_to_instance',
+parser.add_argument('--instance',
                     help='where is the instance you want to test',
                     default="CartPole-v1_89957121")
 parser.add_argument('--episodes',
-                    help='number of games for evaluation', default=100, type=int)
+                    help='number of games for evaluation',
+                    default=100, type=int)
 
 parser.add_argument('--render', action='store_true',
                     help='if true render the games', default=0)
@@ -27,12 +28,13 @@ parser.add_argument('--get_gif', action='store_true',
 
 args = parser.parse_args()
 
-path_instance = os.path.join("experiences",args.path_to_instance)
+path_instance = os.path.join("experiences", args.instance)
 episodes = args.episodes
-name_env = args.path_to_instance.split("_")[0]
+name_env = args.instance.split("_")[0]
 
 print()
-print("Evaluating experiment {} on {} games ...\n".format(args.path_to_instance, args.episodes), "\n")
+print("Evaluating experiment {} on {} games ..\n".format(args.instance,
+                                                         args.episodes), "\n")
 
 final_res = []
 for loss in ["clipped_loss_actor",
@@ -74,6 +76,11 @@ print("Results: \n")
 df = pd.DataFrame(np.array(final_res).T)
 df.columns = ["clipped_loss", "adaptative_KL_loss", "A2C_loss"]
 print(df.describe().to_string())
-pickle.dump(df,open(os.path.join("experiences",args.path_to_instance,"logs","eval_results.pkl"),"wb"))
-print("saved at {}".format(os.path.join("experiences",args.path_to_instance,"logs","eval_results.pkl")))
-
+pickle.dump(df, open(os.path.join("experiences",
+                                  args.instance,
+                                  "logs",
+                                  "eval_results.pkl"), "wb"))
+print("saved at {}".format(os.path.join("experiences",
+                                        args.instance,
+                                        "logs",
+                                        "eval_results.pkl")))

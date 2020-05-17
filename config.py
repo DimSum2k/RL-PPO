@@ -25,7 +25,7 @@ def get_arguments():
     parser.add_argument('--c1', type=float,
                         help='value function weight if shared actor-critic architecture',
                         default=0)
-    parser.add_argument('--c2',type=float,
+    parser.add_argument('--c2', type=float,
                         help='entropy weight parameter', default=1e-3)
     parser.add_argument('--lr', type=float,
                         help='learning rate actor-critic', default=1e-3)
