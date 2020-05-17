@@ -1,4 +1,4 @@
-# RL-PPO: Proximal Policy Optimization Algorithms: a review
+# Proximal Policy Optimization Algorithms: a review
 
 ***Authors:*** Dimitri Meunier, Philomène Chagniot and Pierre Delanoue
 
