@@ -34,7 +34,7 @@ def get_arguments():
                         default=1e-3)
     parser.add_argument('--seed', type=int, help='manual seed', default=42)
     parser.add_argument('--max_episodes', type=int,
-                        help='maximum number of episodes', default=1000)
+                        help='maximum number of episodes', default=1200)
     parser.add_argument('--max_steps', type=int,
                         help='maximum number of steps per episode',
                         default=300)

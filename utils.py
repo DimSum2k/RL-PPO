@@ -10,7 +10,7 @@ import sys
 
 
 def plot_result(*df, config, save, var=["Episode", "Reward"]):
-    plt.figure(figsize=(8, 4))
+    plt.figure(figsize=(10, 6))
     for r in df:
         loss_name = r['loss_name'].unique()[0]
         sns.lineplot(x=var[0], y=var[1],
@@ -70,7 +70,7 @@ def save_frames_as_gif(frames, filename):
     anim.save(filename, writer='imagemagick', fps=60)
 
 
-def get_gif(path_to_instance, name_env='CartPole-v1', loss="A2C_loss_actor"):
+def get_gif(path_to_instance, name_env='CartPole-v1', loss="clipped_loss_actor"):
 
     env = gym.make(name_env)
     policy = CustomDiscreteActorNetwork(env.observation_space.shape[0],
@@ -93,7 +93,7 @@ def get_gif(path_to_instance, name_env='CartPole-v1', loss="A2C_loss_actor"):
 
         if done or t == 999:
             print("Episode finished after {} timesteps".format(t+1))
-            print("Score :" + str(score))
+            print("Score :" + str(score) + "... wait ...")
             break
 
     name = os.path.join(path_to_instance, "images", loss + ".gif")

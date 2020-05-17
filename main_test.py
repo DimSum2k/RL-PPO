@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument('--instance',
                     help='where is the instance you want to test',
-                    default="CartPole-v1_89957121")
+                    default="CartPole-v1_4836159")
 parser.add_argument('--episodes',
                     help='number of games for evaluation',
                     default=100, type=int)
@@ -69,7 +69,7 @@ for loss in ["clipped_loss_actor",
 
 if args.get_gif:
     print()
-    print("Saving GIF ...")
+    print("Saving GIF for PPO clipped loss ...")
     get_gif(path_instance, name_env, "A2C_loss_actor")
 print()
 print("Results: \n")

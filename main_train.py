@@ -58,4 +58,5 @@ if __name__ == '__main__':
     pkl.dump({"config": config, "loss": loss_list, "rewards": rewards_list},
              open(os.path.join(folder_name, "logs", "losses_rewards_config.pkl"),
              "wb"))
+    print()
     print("Simulation saved at {}".format(folder_name))
